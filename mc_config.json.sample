@@ -1,0 +1,33 @@
+{
+    "save": [
+        {
+            "adv_name": "HU-VA-ha1mp_vaci",
+            "password": "admin",
+            "querys": [ {"query":"telemetry", "interval": 300}, 
+                        {"query":"status", "interval": 1200}]
+        },
+        {
+            "adv_name": "HU-VA-ha1mp_433_park",
+            "password": "admin",
+            "querys": [ {"query":"telemetry", "interval": 300}, 
+                        {"query":"status", "interval": 1200}]
+        },
+        {
+            "adv_name": "HU-VA-ha1mp_zana",
+            "password": "admin",
+            "querys": [ {"query":"status", "interval": 1200}]
+        },
+        {
+            "adv_name": "[KT-R0] LHA*",
+            "password": "",
+            "querys": [ {"query":"telemetry", "interval": 600},
+                        {"query":"status", "interval": 1200}]
+        },
+        {
+            "adv_name": "[KT-R1]KDO*",
+            "password": "",
+            "querys": [ {"query":"telemetry", "interval": 600},
+                        {"query":"status", "interval": 1200}]
+        }
+    ]
+}

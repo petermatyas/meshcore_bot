@@ -1,0 +1,5 @@
+python-dotenv
+pyserial
+meshcore
+influxdb3-python
+requests

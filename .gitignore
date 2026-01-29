@@ -6,4 +6,5 @@ venv/
 
 
 mc_config.json
-
+*.jsonl
+test.py

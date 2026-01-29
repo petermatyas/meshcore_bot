@@ -8,7 +8,7 @@ class Config:
         self.logger = logger
 
         self.queryIntervals = dict()
-
+        self.discover = dict()
 
     def __readConfig(self):
         try:
@@ -28,6 +28,11 @@ class Config:
         self.__readConfig()
         return self.config["usb"]["vid"]
 
+    def getChannels(self):
+        self.__readConfig()
+        return self.config["channels"]
+
+
     def getTelemetryList(self):
         self.__readConfig()
         return self.config["save"]
@@ -36,7 +41,7 @@ class Config:
         for node in self.config["save"]:
             if node["adv_name"] == adv_name:
                 for q in node["querys"]:
-                    if q["query"] == query:
+                    if q["query"] == query and "active" in q and q["active"] == True:
                         return True
         return False
             
@@ -63,3 +68,14 @@ class Config:
         if not adv_name in self.queryIntervals:
             self.queryIntervals[adv_name] = dict()
         self.queryIntervals[adv_name][query] = time.time()
+
+    def isDiscovered(self, adv_name:str):
+        if not adv_name in self.discover:
+            self.discover[adv_name] = {"discovered":None, "path":""}
+        
+        return self.discover[adv_name]["discovered"]
+        
+    def setDiscover(self, adv_name:str, discover:bool):
+        self.discover[adv_name]["discovered"] = discover
+
+

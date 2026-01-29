@@ -15,9 +15,8 @@ from meshcore import MeshCore, EventType
 from lib import influx_lib
 from lib import serial_lib
 from lib import db
-from lib import weather_lib
-from lib import tracker_lib
 from lib import config_lib
+from lib import chatbot_lib
 
 
 load_dotenv()
@@ -29,157 +28,41 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 
-def isMaidenhead(locator):
-    locator = locator.lower()
-    if not locator[0].isalpha() or \
-        not locator[1].isalpha() or \
-        not locator[0] in [chr(i) for i in range(ord('a'),ord('r')+1)] or \
-        not locator[1] in [chr(i) for i in range(ord('a'),ord('r')+1)]:
-        return False
-    if not locator[2].isdigit() or not locator[3].isdigit():
-        return False
-    if len(locator) == 4:
-        return True
-    if not locator[4].isalpha() or not locator[5].isalpha():
-        return False
-    if len(locator) == 6:   
-        return True
-    if not locator[2].isdigit() or not locator[3].isdigit():
-        return False
-    if len(locator) == 8:
-        return True
-    return True
 
-def maidenheadToLatLon(locator):
-    locator = locator.lower()
-    if not isMaidenhead(locator):
-        return None
-
-    lon = (ord(locator[0]) - ord('a')) * 20 - 180
-    lat = (ord(locator[1]) - ord('a')) * 10 - 90
-
-    lon += int(locator[2]) * 2
-    lat += int(locator[3]) * 1
-
-    if len(locator) >= 6:
-        lon += (ord(locator[4]) - ord('a')) * (5/60)
-        lat += (ord(locator[5]) - ord('a')) * (2.5/60)
-
-    if len(locator) == 8:
-        lon += int(locator[6]) * (5/600)
-        lat += int(locator[7]) * (2.5/600)
-
-    # Return the center of the square
-    if len(locator) == 2:
-        lon += 10
-        lat += 5
-    elif len(locator) == 4:
-        lon += 1
-        lat += 0.5
-    elif len(locator) == 6:
-        lon += (5/120)
-        lat += (2.5/120)
-    elif len(locator) == 8:
-        lon += (5/1200)
-        lat += (2.5/1200)
-
-    return lat, lon
-
-
-class Chatbot:
-    def __init__(self):
-        self.active_tracker = {}
-
-    async def parse(self, data):
-        type = data["type"].lower()
-
-        if type == "priv":
-            __messageSplitted = data["text"].lower().split(" ")
-            command = __messageSplitted[0]
-            params  = __messageSplitted[1:]
-            contact = mc.get_contact_by_key_prefix(data['pubkey_prefix'])
-            adv_name = contact["adv_name"]
-        elif type == "chan":
-            command = ' '.join(data["text"].split(":")[1:]).split(" ")[0]
-            params  = ' '.join(data["text"].split(":")[1:]).split(" ")[1:]
-            __contact_name = data["text"].split(":")[0]
-            contact = mc.get_contact_by_name(__contact_name)
-            adv_name = contact["adv_name"]
-
-
-        if data["type"].lower() == "priv":
-            if command in ["ping"]:
-                await sendMessage(contact, "pong")
-
-            elif command in ["track"]:
-                await tracker.parse(command, params, contact, adv_name)
-
-            elif command in ["weather"]:
-                if len(params) == 0:
-                    if "adv_lat" in contact and "adv_lon" in contact:
-                       lat = contact["adv_lat"]
-                       lon = contact["adv_lon"]
-                       weather_info = weather.getCurrentWeatherLatlon(lat, lon)
-                       await sendMessage(contact, weather_info)
-                    else:
-                       await sendMessage(contact, "No coordinates set for this node")
-                elif len(params) == 1:
-                    p = params[0]
-                    if isMaidenhead(p):
-                        lat, lon = maidenheadToLatLon(p)
-                        weather_info = weather.getCurrentWeatherLatlon(lat, lon)
-                        await sendMessage(contact, weather_info)
-                    else:  
-                        weather_info = weather.getCurrentWeatherCity(p)
-                        await sendMessage(contact, weather_info)
-                
-            elif command in ["forecast"]:
-                if len(params) == 0:
-                    if "adv_lat" in contact and "adv_lon" in contact:
-                       lat = contact["adv_lat"]
-                       lon = contact["adv_lon"]
-                       weather_info = weather.getForecastLatLon(lat, lon)
-                       await sendMessage(contact, weather_info)
-                    else:
-                       await sendMessage(contact, "No coordinates set for this node")
-                elif len(params) == 1:
-                    p = params[0]
-                    if isMaidenhead(p):
-                        lat, lon = maidenheadToLatLon(p)
-                        weather_info = weather.getForecastLatLon(lat, lon)
-                        await sendMessage(contact, weather_info)
-                    else:  
-                        weather_info = weather.getForecastCity(p)
-                        await sendMessage(contact, weather_info)
-                
-
-tracker = tracker_lib.Tracker()
-chatbot = Chatbot()
+chatbot = chatbot_lib.Chatbot()
 db = db.Db()
-weather = weather_lib.Weather()
+
 
 dirPath = os.path.dirname(os.path.abspath(__file__))
 configPath = os.path.join(dirPath, "mc_config.json")
-print("configpath", configPath)
-
 config = config_lib.Config(configPath=configPath, logger=logger)
 
 serial = serial_lib.Serial_helper(pid=config.getUsbPid(), vid=config.getUsbVid())
 
-async def sendMessage(contact, message, req_ack=False):
+async def sendMessage(contact, message):
+    
     result = await mc.commands.send_msg(contact, message)
+    print("result", result)
     if result.type == EventType.ERROR:
-        #print(f"⚠️ Failed to send message: {result.payload}")
-        pass
+        print(f"⚠️ Failed to send message: {result.payload}")
+    expected_ack = result.payload["expected_ack"].hex()
+    print(f"Message sent, waiting for ACK with code: {expected_ack}")
+    
+    timeout=15
+    # Wait for the specific ACK that matches our message
+    ack_event = await mc.wait_for_event(
+        EventType.ACK,
+        #attribute_filters={"code": expected_ack},
+        timeout=timeout
+    )
+    print("ack_event", ack_event)
+    
+    if ack_event:
+        print(f"✅ Message confirmed delivered! (ACK received)")
     else:
-        exp_ack = result.payload["expected_ack"].hex()
-        #print(f"📨 Sent: {message}", end="", flush=True)
-        if req_ack:
-            res = await mc.wait_for_event(EventType.ACK, attribute_filters={"code": exp_ack}, timeout=5)
-            #if res is None :
-            #    #print ("No ack !!!")
-            #else :
-            #    print ("Ack")
+        print(f"⚠️ Timed out waiting for ACK after {timeout} seconds")  
+    
+
 
 async def getRemoteLocation(nodeName):
     repeater = mc.get_contact_by_name(nodeName)
@@ -218,13 +101,6 @@ async def login(mc, repeater, password, retry=3):
                 login_ok = True
                 return True
     return False
-
-async def handle_message(event):
-    data = event.payload
-    logger.info(f"New message received: {data}")
-    await chatbot.parse(data)
-
-    db.saveMessage(data)
 
 async def check_coordinates():
     while True:
@@ -374,6 +250,60 @@ async def check_repeater_telemetry():
 
         await asyncio.sleep(10)
 
+async def handlePrivMessage(event):
+    data = event.payload
+    #db.saveMessage(data)
+
+    logger.info(f"New message received: {data}")
+
+    __messageSplitted = data["text"].lower().split(" ")
+    command = __messageSplitted[0]
+    params  = __messageSplitted[1:]
+    contact = mc.get_contact_by_key_prefix(data['pubkey_prefix'])
+    adv_name = contact["adv_name"]
+    try:
+        adv_lat = contact["adv_lat"]
+        adv_lon = contact["adv_lon"]
+    except:
+        adv_lat = None
+        adv_lon = None
+
+    adv_name, answer = await chatbot.parse(command, params, adv_name, adv_lat, adv_lon)
+
+    if adv_name != None and answer != None:
+        #print("answer:", answer)
+        contact =  mc.get_contact_by_name(adv_name)
+        if not contact:
+            logger.info(f"no {adv_name} contact")
+        #print("contact", contact)
+        await sendMessage(contact, answer)
+
+async def handleChanMessage(event):
+    """
+    {'type': 'CHAN', 'channel_idx': 0, 'path_len': 0, 'txt_type': 0, 'sender_timestamp': 1769631085, 'text': 'ha1mp: Test'}
+    """
+    data = event.payload
+
+    channel_idx = data["channel_idx"]
+    adv_name = data["text"].split(":")[0]
+    msg = data["text"].split(":")[1].strip()
+    command = msg.split(" ")[0]
+    params  = msg.split(" ")[1:]
+    contact = mc.get_contact_by_name(adv_name)
+    try:
+        adv_lat = contact["adv_lat"]
+        adv_lon = contact["adv_lon"]
+    except:
+        adv_lat = None
+        adv_lon = None
+
+    adv_name, answer = await chatbot.parse(command, params, adv_name, adv_lat, adv_lon)
+    
+    result = await mc.commands.send_chan_msg(channel_idx, answer)
+    if result.type == EventType.ERROR:
+        print(f"Error sending reply: {result.payload}")
+    else:
+        print("Reply sent")
 
 
 async def main():
@@ -382,12 +312,34 @@ async def main():
     mc = await MeshCore.create_serial(serial.getUsbPort(), auto_reconnect=True, max_reconnect_attempts=5)
 
     if mc.is_connected:
-        logging.info("Seral connection estabilished")
+        logging.info("Serial connection estabilished")
+
+
+    #channel settings
+    for chan in config.getChannels():
+        channel_idx = chan["index"]
+        channel_name = chan["name"]
+        secret_key = chan["secret_key"]
+
+        #try:
+        channel_secret = bytes.fromhex(secret_key)
+        #except ValueError:
+        #    print("Error: Invalid hex string")
+        #    return
+
+        print(f"Setting channel {channel_idx}...")
+        result = await mc.commands.set_channel(channel_idx, channel_name, channel_secret)
+
+        if result.type == EventType.OK:
+            print("Channel configured successfully!")
+        elif result.type == EventType.ERROR:
+            print(f"Error setting channel: {result.payload}")
+        else:
+            print(f"Unexpected response: {result.type}")
 
     # Subscribe to private messages
-    private_subscription = mc.subscribe(EventType.CONTACT_MSG_RECV, handle_message)
-    channel_subscription = mc.subscribe(EventType.CHANNEL_MSG_RECV, handle_message)
-
+    private_subscription = mc.subscribe(EventType.CONTACT_MSG_RECV, handlePrivMessage)
+    channel_subscription = mc.subscribe(EventType.CHANNEL_MSG_RECV, handleChanMessage)
 
     await mc.ensure_contacts()
     await mc.start_auto_message_fetching()
@@ -417,11 +369,7 @@ async def main():
         await mc.disconnect()
 
 
-
-
-
 if __name__ == "__main__":    
-
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

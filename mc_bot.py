@@ -231,7 +231,7 @@ async def check_repeater_telemetry():
                         logger.info(f"{nodeName} telemetry")
                         influx_lib.write_influx(measurement="telemetry", tags=telemetry, fileds={"node":nodeName})
                     except Exception as e:
-                        logger.error(f"Error getting telemetry for {nodeName}: {e}")
+                        logger.warning(f"Error getting telemetry for {nodeName}: {e}")
                 #else:
                 #    print(f"telemetry {nodeName} diff time: {time.time() - config.queryIntervals[nodeName]['telemetry']}, interval: {config.getQueryInterval(nodeName, 'telemetry')}")
 
@@ -245,7 +245,7 @@ async def check_repeater_telemetry():
                         logger.info(f"{nodeName} status")
                         influx_lib.write_influx(measurement="status", tags=status, fileds={"node":nodeName})
                     except Exception as e:
-                        logger.error(f"Error getting status for {nodeName}: {e}")
+                        logger.warning(f"Error getting status for {nodeName}: {e}")
                     
 
         await asyncio.sleep(10)
@@ -305,6 +305,58 @@ async def handleChanMessage(event):
     else:
         print("Reply sent")
 
+async def saveContacts():
+    while True:
+        result = await mc.commands.get_contacts()
+        if result.type == EventType.ERROR:
+            print(f"Error getting contacts: {result.payload}")
+        else:
+            payload = result.payload
+            payload
+            json_str = json.dumps(payload, indent=4)
+            with open(config.getContactSaveFilename(), "w") as f:
+                f.write(json_str)
+
+        await asyncio.sleep(config.getContactSaveInterval())
+
+
+async def removePaths(adv_names):
+    for adv_name in adv_names:
+        contact = mc.get_contact_by_name(adv_name)
+        if contact:
+            public_key = contact["public_key"]
+
+            result = await mc.commands.reset_path(public_key)
+            if result.type == EventType.ERROR:
+                logging.info(f"Error remove path: {result.payload}")
+            else:
+                logging.info(f"Path removed: {adv_name}")
+
+            """
+            result = await mc.commands.send_path_discovery(contact)
+            if result.type == EventType.ERROR:
+                logging.info(f"Error path discovery: {result.payload}")
+            
+            event = await mc.wait_for_event(
+                EventType.MSG_SENT,
+                timeout=15
+            )
+            print("send path dicovery event", event)
+
+            if event:
+                print("====>>>", event.payload)
+            """
+
+
+            path = config.getPathByName(adv_name)
+            if path != None:
+                print()
+                result = await mc.commands.change_contact_path(contact, path)
+                if result.type == EventType.ERROR:
+                    logging.info(f"Error add path: {result.payload}")
+                else:
+                    logging.info(f"Path ({path}) added to {adv_name}")
+
 
 async def main():
     global mc
@@ -313,7 +365,6 @@ async def main():
 
     if mc.is_connected:
         logging.info("Serial connection estabilished")
-
 
     #channel settings
     for chan in config.getChannels():
@@ -337,16 +388,23 @@ async def main():
         else:
             print(f"Unexpected response: {result.type}")
 
+    await mc.ensure_contacts()
+    await mc.start_auto_message_fetching()
+
+    adv_names = [i["adv_name"] for i in config.getTelemetryList()]
+    await removePaths(adv_names)
+
     # Subscribe to private messages
     private_subscription = mc.subscribe(EventType.CONTACT_MSG_RECV, handlePrivMessage)
     channel_subscription = mc.subscribe(EventType.CHANNEL_MSG_RECV, handleChanMessage)
 
-    await mc.ensure_contacts()
-    await mc.start_auto_message_fetching()
+    
+    
 
     try:
         #task = asyncio.create_task(check_coordinates())
         task2 = asyncio.create_task(check_repeater_telemetry())
+        task_contact = asyncio.create_task(saveContacts())
 
         while True:
             line = (await asyncio.to_thread(sys.stdin.readline)).rstrip('\n')
@@ -370,9 +428,13 @@ async def main():
 
 
 if __name__ == "__main__":    
+
+    asyncio.run(main())
+    """
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nExited cleanly")
     except Exception as e:
         print(f"Error: {e}")
+    """

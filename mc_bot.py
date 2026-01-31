@@ -143,14 +143,20 @@ def processStatus(status):
 def processTelemetry(telemetry):
     res = dict()
     for i in telemetry:
-        if i["type"] == "temperature" and i["value"] > 45:
+        channel = i["channel"]
+        telemetryType = i["type"]
+        value = i["value"]
+        if not telemetryType in res:
+            res[telemetryType] = value
+
+        """if i["type"] == "temperature" and i["value"] > 45:
             #chanel = i["channel"]
             value = i["value"]
             res["cpu_temperature"] = value
             #temp.append({"channel":chanel, "type":"cpu_temperature", "value":value})
         else:
             res[i["type"]] = i["value"]
-            #temp.append(i)
+            #temp.append(i)"""
     return res
 
 async def getTelemetry(nodeName):

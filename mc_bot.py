@@ -22,7 +22,7 @@ from lib import chatbot_lib
 load_dotenv()
 
 logging.basicConfig(filename="mc_logfile.log",
-                    format='%(asctime)s %(levelname)s: %(message)s',
+                    format='%(asctime)s %(filename)s %(lineno)d %(levelname)s: %(message)s',
                     filemode='w')
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -173,9 +173,8 @@ async def getTelemetry(nodeName):
 
     telemetry_req = await mc.commands.send_telemetry_req(contact)
     if telemetry_req.type == EventType.ERROR:
-        logger.debug("Error sending telemetry request:", telemetry_req)
+        #logger.debug("Error sending telemetry request:", telemetry_req)
         raise Exception(f"Telemetry req error: {telemetry_req}")
-    #logger.debug(f"telemetry_req: {telemetry_req}")
 
     suggested_timeout = telemetry_req.payload["suggested_timeout"] / 800
     logger.debug(f"{nodeName} timeout: {suggested_timeout}")

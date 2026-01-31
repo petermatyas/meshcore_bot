@@ -16,7 +16,7 @@ class Config:
                 data = json.load(json_data)
                 self.config = data
 
-                #self.logger.info("Config file successfully reloaded")
+                self.logger.info("Config file successfully reloaded")
         except Exception as e:
             self.logger.error(f"Config read error: {e}")
 
@@ -32,29 +32,11 @@ class Config:
         self.__readConfig()
         return self.config["channels"]
 
-    def getContactSaveInterval(self):
-        self.__readConfig()
-        return self.config["contacts_save"]["interval_s"]
-
-    def getContactSaveFilename(self):
-        self.__readConfig()
-        return self.config["contacts_save"]["filename"]
-
-    
 
     def getTelemetryList(self):
         self.__readConfig()
         return self.config["save"]
     
-    def getPathByName(self, adv_name):
-        aa = self.getTelemetryList()
-        for i in aa:
-            if i["adv_name"] == adv_name:
-                if not "path" in i:
-                    return None
-                return i["path"]
-        return None
-
     def isQuery(self, adv_name, query):
         for node in self.config["save"]:
             if node["adv_name"] == adv_name:
@@ -95,9 +77,5 @@ class Config:
         
     def setDiscover(self, adv_name:str, discover:bool):
         self.discover[adv_name]["discovered"] = discover
-
-
-
-
 
 

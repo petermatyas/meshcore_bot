@@ -14,23 +14,21 @@ from meshcore import MeshCore, EventType
 
 from lib import influx_lib
 from lib import serial_lib
-from lib import db
+from lib import db_lib
 from lib import config_lib
 from lib import chatbot_lib
 
 
 load_dotenv()
 
-logging.basicConfig(filename="mc_logfile.log",
-                    format='%(asctime)s %(filename)s %(lineno)d %(levelname)s: %(message)s',
-                    filemode='w')
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(filename)s %(lineno)d %(levelname)s: %(message)s')
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
 
 
 
 chatbot = chatbot_lib.Chatbot()
-db = db.Db()
+db_lib = db_lib.Db()
 
 
 dirPath = os.path.dirname(os.path.abspath(__file__))
@@ -124,7 +122,7 @@ async def check_coordinates():
 
                         if lat != trackers["adv_name"]["last_latitude"] and \
                            lon != trackers["adv_name"]["last_longitude"]:
-                            db.savePosition(adv_name, lat, lon, alt)
+                            db_lib.savePosition(adv_name, lat, lon, alt)
                 
                 trackers[i]["last_time"] = now
 

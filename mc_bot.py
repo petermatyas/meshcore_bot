@@ -148,6 +148,8 @@ def processTelemetry(telemetry):
         value = i["value"]
         if not telemetryType in res:
             res[telemetryType] = value
+        elif telemetryType == "temperature":
+            res["cpu_temperature"] = value
 
         """if i["type"] == "temperature" and i["value"] > 45:
             #chanel = i["channel"]

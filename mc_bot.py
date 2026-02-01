@@ -6,6 +6,7 @@ import os
 import requests
 import logging
 from datetime import datetime 
+import time
 
 from dotenv import load_dotenv
 
@@ -70,7 +71,7 @@ async def getRemoteLocation(nodeName):
     if res["status"] == "ok":
         return res["payload"]
 
-async def login(mc, repeater, password, retry=3):
+async def login(contact, password, retry=3):
     login_ok = False
 
     while retry > 0 and not login_ok:
@@ -78,27 +79,105 @@ async def login(mc, repeater, password, retry=3):
         #print(f"retry: {retry}   login_ok: {login_ok}   {retry > 0} {not login_ok}")
         retry -= 1 
 
-        login_cmd = await mc.commands.send_login(repeater, password)
+        login_cmd = await mc.commands.send_login(contact, password)
         if login_cmd == None:
             #print("Error send login command")
             continue
         elif login_cmd.type == EventType.ERROR:
             #print(f"Login error: {login_cmd}")
-            logger.error(f"{repeater} login error: {login_cmd}")
+            logger.error(f" login error: {login_cmd}")
             continue
         else:
             login_cmd_resp = await mc.wait_for_event(EventType.LOGIN_SUCCESS, timeout=20)
             if login_cmd_resp == None:
-                print(f"login timeout error: {repeater["adv_name"]}")
+                print(f"login timeout error: {contact["adv_name"]}")
                 continue
             elif login_cmd_resp.type == EventType.ERROR:
                 print("login_cmd_resp", login_cmd_resp) 
                 continue
             else:
-                print(f"login succes: {repeater["adv_name"]}")
+                print(f"login succes: {contact["adv_name"]}")
                 login_ok = True
                 return True
     return False
+
+async def setTime(contact, password):
+    adv_name = contact["adv_name"]
+
+    res = await login(contact, password)
+    if res:
+        ts = int(time.time())
+        res = await mc.commands.set_time(ts)
+        logger.info(f"set time: {adv_name}")
+   
+async def saveContacts():
+    while True:
+        result = await mc.commands.get_contacts()
+        if result.type == EventType.ERROR:
+            print(f"Error getting contacts: {result.payload}")
+        else:
+            payload = result.payload
+            payload
+            json_str = json.dumps(payload, indent=4)
+            with open(config.getContactSaveFilename(), "w") as f:
+                f.write(json_str)
+
+        await asyncio.sleep(config.getContactSaveInterval())
+
+async def setPath(contact, path):
+    public_key = contact["public_key"]
+    adv_name = contact["adv_name"]
+
+    result = await mc.commands.reset_path(public_key)
+    if result.type == EventType.ERROR:
+        logging.info(f"Error remove path: {result.payload}")
+    else:
+        logging.info(f"Path removed: {adv_name}")
+
+    if path != None:
+        result = await mc.commands.change_contact_path(contact, path)
+        if result.type == EventType.ERROR:
+            logging.info(f"Error add path: {result.payload}")
+        else:
+            logging.info(f"Path ({path}) added to {adv_name}")
+
+
+async def setPaths(adv_names):
+    for adv_name in adv_names:
+        contact = mc.get_contact_by_name(adv_name)
+        if contact:
+            public_key = contact["public_key"]
+
+            result = await mc.commands.reset_path(public_key)
+            if result.type == EventType.ERROR:
+                logging.info(f"Error remove path: {result.payload}")
+            else:
+                logging.info(f"Path removed: {adv_name}")
+
+            """
+            result = await mc.commands.send_path_discovery(contact)
+            if result.type == EventType.ERROR:
+                logging.info(f"Error path discovery: {result.payload}")
+            
+            event = await mc.wait_for_event(
+                EventType.MSG_SENT,
+                timeout=15
+            )
+            print("send path dicovery event", event)
+
+            if event:
+                print("====>>>", event.payload)
+            """
+
+            path = config.getPathByName(adv_name)
+            if path != None:
+                print()
+                result = await mc.commands.change_contact_path(contact, path)
+                if result.type == EventType.ERROR:
+                    logging.info(f"Error add path: {result.payload}")
+                else:
+                    logging.info(f"Path ({path}) added to {adv_name}")
+
 
 async def check_coordinates():
     while True:
@@ -342,12 +421,27 @@ async def main():
         else:
             print(f"Unexpected response: {result.type}")
 
+    await mc.ensure_contacts()
+    await mc.start_auto_message_fetching()
+
+
+    for i in config.getTelemetryList():
+        adv_name = i["adv_name"]
+        password = i["password"]
+        path = config.getPathByName(adv_name)
+
+        contact = mc.get_contact_by_name(adv_name)
+        if contact != None:
+            await setTime(contact, password)
+            await setPath(contact, path)
+        else:
+            pass # TODO erro message: no contact
+
+
     # Subscribe to private messages
     private_subscription = mc.subscribe(EventType.CONTACT_MSG_RECV, handlePrivMessage)
     channel_subscription = mc.subscribe(EventType.CHANNEL_MSG_RECV, handleChanMessage)
 
-    await mc.ensure_contacts()
-    await mc.start_auto_message_fetching()
 
     try:
         #task = asyncio.create_task(check_coordinates())
@@ -375,9 +469,12 @@ async def main():
 
 
 if __name__ == "__main__":    
+    asyncio.run(main())
+    """
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nExited cleanly")
     except Exception as e:
         print(f"Error: {e}")
+    """

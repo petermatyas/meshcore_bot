@@ -16,7 +16,6 @@ class Config:
                 data = json.load(json_data)
                 self.config = data
 
-                self.logger.info("Config file successfully reloaded")
         except Exception as e:
             self.logger.error(f"Config read error: {e}")
 
@@ -32,6 +31,22 @@ class Config:
         self.__readConfig()
         return self.config["channels"]
 
+    def getContactSaveInterval(self):
+        self.__readConfig()
+        return self.config["contacts_save"]["interval_s"]
+
+    def getContactSaveFilename(self):
+        self.__readConfig()
+        return self.config["contacts_save"]["filename"]
+    
+    def getPathByName(self, adv_name):
+        aa = self.getTelemetryList()
+        for i in aa:
+            if i["adv_name"] == adv_name:
+                if not "path" in i:
+                    return None
+                return i["path"]
+        return None
 
     def getTelemetryList(self):
         self.__readConfig()

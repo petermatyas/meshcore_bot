@@ -6,5 +6,6 @@ venv/
 
 
 mc_config.json
+contacts.json
 *.jsonl
 test.py

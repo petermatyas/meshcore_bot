@@ -1,0 +1,12 @@
+[Unit]
+Description=Meshcore bot
+After=network.target
+
+[Service]
+ExecStart=/home/ha1mp/projects/meshcore_bot/venv/bin/python /home/ha1mp/projects/meshcore_bot/mc_bot.py
+Restart=always
+User=ha1mp
+Group=ha1mp
+
+[Install]
+WantedBy=multi-user.target

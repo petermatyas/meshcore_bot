@@ -6,14 +6,14 @@ from dotenv import load_dotenv
 
 
 class Serial_helper():
-    def __init__(self, vid, pid):
+    def __init__(self, vid=0, pid=0):
         self.vid = vid
         self.pid = pid
 
     def listPorts(self):
         for i in serial.tools.list_ports.comports():
             if i.serial_number != None:
-                print(repr(i.pid), repr(i.vid), repr(i.device))
+                print("port:", repr(i.device), "\tpid:", repr(i.pid), "\tvid:", repr(i.vid))
     
     def getUsbPort(self):
         for i in serial.tools.list_ports.comports():

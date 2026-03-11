@@ -1,11 +1,11 @@
 import sys
 import json
-import csv
+#import csv
 import time
 import os
-import requests
+#import requests
 import logging
-from datetime import datetime 
+#from datetime import datetime 
 import time
 
 from dotenv import load_dotenv
@@ -26,7 +26,7 @@ logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(filename)s %(lineno)d %(levelname)s: %(message)s')
 logger = logging.getLogger()
 
-
+SAVE_TO_DB = True
 
 chatbot = chatbot_lib.Chatbot()
 db_lib = db_lib.Db()
@@ -61,8 +61,6 @@ async def sendMessage(contact, message):
     else:
         print(f"⚠️ Timed out waiting for ACK after {timeout} seconds")  
     
-
-
 async def getRemoteLocation(nodeName):
     repeater = mc.get_contact_by_name(nodeName)
     if repeater == None:
@@ -141,7 +139,6 @@ async def setPath(contact, path):
         else:
             logging.info(f"Path ({path}) added to {adv_name}")
 
-
 async def setPaths(adv_names):
     for adv_name in adv_names:
         contact = mc.get_contact_by_name(adv_name)
@@ -177,7 +174,6 @@ async def setPaths(adv_names):
                     logging.info(f"Error add path: {result.payload}")
                 else:
                     logging.info(f"Path ({path}) added to {adv_name}")
-
 
 async def check_coordinates():
     while True:
@@ -313,7 +309,8 @@ async def check_repeater_telemetry():
                         telemetry = processTelemetry(telemetry_raw)
 
                         logger.info(f"{nodeName} telemetry")
-                        influx_lib.write_influx(measurement="telemetry", tags=telemetry, fileds={"node":nodeName})
+                        if SAVE_TO_DB:
+                            influx_lib.write_influx(measurement="telemetry", tags=telemetry, fileds={"node":nodeName})
                     except Exception as e:
                         logger.error(f"Error getting telemetry for {nodeName}: {e}")
                 #else:
@@ -327,7 +324,8 @@ async def check_repeater_telemetry():
                         status = processStatus(status_raw)
 
                         logger.info(f"{nodeName} status")
-                        influx_lib.write_influx(measurement="status", tags=status, fileds={"node":nodeName})
+                        if SAVE_TO_DB:
+                            influx_lib.write_influx(measurement="status", tags=status, fileds={"node":nodeName})
                     except Exception as e:
                         logger.error(f"Error getting status for {nodeName}: {e}")
                     
@@ -389,6 +387,38 @@ async def handleChanMessage(event):
     else:
         print("Reply sent")
 
+async def saveContacts(): 
+    mc = await MeshCore.create_serial(serial.getUsbPort(), auto_reconnect=True, max_reconnect_attempts=5)
+
+
+    result = await mc.commands.get_contacts()
+    if result.type == EventType.ERROR:
+        print(f"Error getting contacts: {result.payload}")
+        return 0
+    contacts = result.payload
+    print(f"Found {len(contacts)} contacts")
+
+    contactList = list()
+    for i in contacts:
+        #if "KT" in contacts[i]['adv_name']:
+            #print(contacts[i])
+        aa = mc.get_contact_by_name(contacts[i]['adv_name'])
+        contactList.append(aa)
+
+
+
+    with open("contacts.jsonl", "w") as file:
+        for i in contactList:
+            file.write(json.dumps(i))
+            file.write("\n")
+
+async def handle_contact_list(repeat):
+    while True:
+        await saveContacts()
+                    
+
+        await asyncio.sleep(repeat)
+
 
 async def main():
     global mc
@@ -446,6 +476,7 @@ async def main():
     try:
         #task = asyncio.create_task(check_coordinates())
         task2 = asyncio.create_task(check_repeater_telemetry())
+        task3 = asyncio.create_task(handle_contact_list(60*60*1))
 
         while True:
             line = (await asyncio.to_thread(sys.stdin.readline)).rstrip('\n')

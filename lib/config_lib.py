@@ -48,7 +48,7 @@ class Config:
                 return i["path"]
         return None
 
-    def getTelemetryList(self):
+    def getNodes(self):
         self.__readConfig()
         return self.config["save"]
     

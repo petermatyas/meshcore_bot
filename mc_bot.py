@@ -301,34 +301,32 @@ async def check_repeater_telemetry():
         for node in sensorNodes:
             nodeName = node["adv_name"]
 
-            if config.isQuery(nodeName, "telemetry"):
-                if config.isQueryTrigger(nodeName, "telemetry"):
-                    config.queryTriggered(nodeName, "telemetry")
-                    try:       
-                        telemetry_raw = await getTelemetry(nodeName)
-                        telemetry = processTelemetry(telemetry_raw)
+            if config.isQuery(nodeName, "telemetry") and config.isQueryTrigger(nodeName, "telemetry"):
+                config.queryTriggered(nodeName, "telemetry")
+                try:       
+                    telemetry_raw = await getTelemetry(nodeName)
+                    telemetry = processTelemetry(telemetry_raw)
 
-                        logger.info(f"{nodeName} telemetry")
-                        if SAVE_TO_DB:
-                            influx_lib.write_influx(measurement="telemetry", tags=telemetry, fileds={"node":nodeName})
-                    except Exception as e:
-                        logger.error(f"Error getting telemetry for {nodeName}: {e}")
-                #else:
-                #    print(f"telemetry {nodeName} diff time: {time.time() - config.queryIntervals[nodeName]['telemetry']}, interval: {config.getQueryInterval(nodeName, 'telemetry')}")
+                    logger.info(f"{nodeName} telemetry")
+                    if SAVE_TO_DB:
+                        influx_lib.write_influx(measurement="telemetry", tags=telemetry, fileds={"node":nodeName})
+                except Exception as e:
+                    logger.error(f"Error getting telemetry for {nodeName}: {e}")
+            #else:
+            #    print(f"telemetry {nodeName} diff time: {time.time() - config.queryIntervals[nodeName]['telemetry']}, interval: {config.getQueryInterval(nodeName, 'telemetry')}")
 
-            if config.isQuery(nodeName, "status"):
-                if config.isQueryTrigger(nodeName, "status"):  
-                    config.queryTriggered(nodeName, "status")
-                    try:  
-                        status_raw = await getStatus(nodeName)
-                        status = processStatus(status_raw)
+            if config.isQuery(nodeName, "status") and config.isQueryTrigger(nodeName, "status"):
+                config.queryTriggered(nodeName, "status")
+                try:  
+                    status_raw = await getStatus(nodeName)
+                    status = processStatus(status_raw)
 
-                        logger.info(f"{nodeName} status")
-                        if SAVE_TO_DB:
-                            influx_lib.write_influx(measurement="status", tags=status, fileds={"node":nodeName})
-                    except Exception as e:
-                        logger.error(f"Error getting status for {nodeName}: {e}")
-                    
+                    logger.info(f"{nodeName} status")
+                    if SAVE_TO_DB:
+                        influx_lib.write_influx(measurement="status", tags=status, fileds={"node":nodeName})
+                except Exception as e:
+                    logger.error(f"Error getting status for {nodeName}: {e}")
+                
 
         await asyncio.sleep(10)
 
@@ -416,13 +414,11 @@ async def handle_contact_list(repeat):
     while True:
         await saveContacts()
                     
-
         await asyncio.sleep(repeat)
 
 
 async def main():
     global mc
-
     mc = await MeshCore.create_serial(serial.getUsbPort(), auto_reconnect=True, max_reconnect_attempts=5)
 
     if mc.is_connected:
@@ -455,15 +451,15 @@ async def main():
     await mc.start_auto_message_fetching()
 
 
-    for i in config.getTelemetryList():
-        adv_name = i["adv_name"]
-        password = i["password"]
-        path = config.getPathByName(adv_name)
+    for node in config.getNodes():
+        adv_name = node["adv_name"]
+        password = node["password"]
+        #path = config.getPathByName(adv_name)
 
         contact = mc.get_contact_by_name(adv_name)
         if contact != None:
             await setTime(contact, password)
-            await setPath(contact, path)
+            #await setPath(contact, path)
         else:
             pass # TODO erro message: no contact
 
@@ -498,9 +494,15 @@ async def main():
         # Disconnect
         await mc.disconnect()
 
+async def test():
+    global mc
+    mc = await MeshCore.create_serial(serial.getUsbPort(), auto_reconnect=True, max_reconnect_attempts=5)
+    print(await getTelemetry("HU-VA-ha1mp_vaci"))
+
 
 if __name__ == "__main__":    
-    asyncio.run(main())
+    #asyncio.run(main())
+    asyncio.run(test())
     """
     try:
         asyncio.run(main())

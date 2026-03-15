@@ -236,7 +236,7 @@ def processTelemetry(telemetry):
 
 async def getTelemetry(nodeName):
     logger.info(f"telemetry request: {nodeName}")
-
+    
     await mc.ensure_contacts()
     contact = mc.get_contact_by_name(nodeName)
     if contact == None:
@@ -501,8 +501,8 @@ async def test():
 
 
 if __name__ == "__main__":    
-    #asyncio.run(main())
-    asyncio.run(test())
+    asyncio.run(main())
+    #asyncio.run(test())
     """
     try:
         asyncio.run(main())

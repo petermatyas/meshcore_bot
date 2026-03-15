@@ -296,37 +296,42 @@ async def getStatus(nodeName):
 async def check_repeater_telemetry():
     logger.info("NODE QUERY loop started...")
     while True:
-        for node in config.getTelemetryList():
+        logger.info(f"nodes: {config.getNodes()}")
+        for node in config.getNodes():
             nodeName = node["adv_name"]
+            logger.info(f"nodename: {nodeName}")
 
-            if config.isQuery(nodeName, "telemetry") and config.isQueryTrigger(nodeName, "telemetry"):
-                config.queryTriggered(nodeName, "telemetry")
-                logger.info(f"{nodeName} telemetry query...")
-                try:       
-                    telemetry_raw = await getTelemetry(nodeName)
-                    telemetry = processTelemetry(telemetry_raw)
+            if config.isQuery(nodeName, "telemetry"):
+                if config.isQueryTrigger(nodeName, "telemetry"):
+                    config.queryTriggered(nodeName, "telemetry")
+                    logger.info(f"{nodeName} telemetry query...")
+                    try:       
+                        telemetry_raw = await getTelemetry(nodeName)
+                        telemetry = processTelemetry(telemetry_raw)
 
-                    logger.info(f"{nodeName} telemetry OK")
-                    if SAVE_TO_DB:
-                        influx_lib.write_influx(measurement="telemetry", tags=telemetry, fileds={"node":nodeName})
-                except Exception as e:
-                    logger.error(f"{nodeName} telemetry error: {e}")
+                        logger.info(f"{nodeName} telemetry OK")
+                        if SAVE_TO_DB:
+                            influx_lib.write_influx(measurement="telemetry", tags=telemetry, fileds={"node":nodeName})
+                    except Exception as e:
+                        logger.error(f"{nodeName} telemetry error: {e}")
             
-            if config.isQuery(nodeName, "status") and config.isQueryTrigger(nodeName, "status"):
-                config.queryTriggered(nodeName, "status")
-                logger.info(f"{nodeName} status query...")
-                try:  
-                    status_raw = await getStatus(nodeName)
-                    status = processStatus(status_raw)
+            
+            if config.isQuery(nodeName, "status"): 
+                if config.isQueryTrigger(nodeName, "status"):
+                    config.queryTriggered(nodeName, "status")
+                    logger.info(f"{nodeName} status query...")
+                    try:  
+                        status_raw = await getStatus(nodeName)
+                        status = processStatus(status_raw)
 
-                    logger.info(f"{nodeName} status OK")
-                    if SAVE_TO_DB:
-                        influx_lib.write_influx(measurement="status", tags=status, fileds={"node":nodeName})
-                except Exception as e:
-                    logger.error(f"{nodeName} status error: {e}")
+                        logger.info(f"{nodeName} status OK")
+                        if SAVE_TO_DB:
+                            influx_lib.write_influx(measurement="status", tags=status, fileds={"node":nodeName})
+                    except Exception as e:
+                        logger.error(f"{nodeName} status error: {e}")
                 
 
-        await asyncio.sleep(10)
+        await asyncio.sleep(1)
 
 async def handlePrivMessage(event):
     data = event.payload

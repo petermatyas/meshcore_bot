@@ -294,38 +294,36 @@ async def getStatus(nodeName):
     return status
 
 async def check_repeater_telemetry():
+    logger.info("NODE QUERY loop started...")
     while True:
-        sensorNodes = config.getTelemetryList()
-
-
-        for node in sensorNodes:
+        for node in config.getTelemetryList():
             nodeName = node["adv_name"]
 
             if config.isQuery(nodeName, "telemetry") and config.isQueryTrigger(nodeName, "telemetry"):
                 config.queryTriggered(nodeName, "telemetry")
+                logger.info(f"{nodeName} telemetry query...")
                 try:       
                     telemetry_raw = await getTelemetry(nodeName)
                     telemetry = processTelemetry(telemetry_raw)
 
-                    logger.info(f"{nodeName} telemetry")
+                    logger.info(f"{nodeName} telemetry OK")
                     if SAVE_TO_DB:
                         influx_lib.write_influx(measurement="telemetry", tags=telemetry, fileds={"node":nodeName})
                 except Exception as e:
-                    logger.error(f"Error getting telemetry for {nodeName}: {e}")
-            #else:
-            #    print(f"telemetry {nodeName} diff time: {time.time() - config.queryIntervals[nodeName]['telemetry']}, interval: {config.getQueryInterval(nodeName, 'telemetry')}")
-
+                    logger.error(f"{nodeName} telemetry error: {e}")
+            
             if config.isQuery(nodeName, "status") and config.isQueryTrigger(nodeName, "status"):
                 config.queryTriggered(nodeName, "status")
+                logger.info(f"{nodeName} status query...")
                 try:  
                     status_raw = await getStatus(nodeName)
                     status = processStatus(status_raw)
 
-                    logger.info(f"{nodeName} status")
+                    logger.info(f"{nodeName} status OK")
                     if SAVE_TO_DB:
                         influx_lib.write_influx(measurement="status", tags=status, fileds={"node":nodeName})
                 except Exception as e:
-                    logger.error(f"Error getting status for {nodeName}: {e}")
+                    logger.error(f"{nodeName} status error: {e}")
                 
 
         await asyncio.sleep(10)

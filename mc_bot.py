@@ -296,10 +296,8 @@ async def getStatus(nodeName):
 async def check_repeater_telemetry():
     logger.info("NODE QUERY loop started...")
     while True:
-        logger.info(f"nodes: {config.getNodes()}")
         for node in config.getNodes():
             nodeName = node["adv_name"]
-            logger.info(f"nodename: {nodeName}")
 
             if config.isQuery(nodeName, "telemetry"):
                 if config.isQueryTrigger(nodeName, "telemetry"):
